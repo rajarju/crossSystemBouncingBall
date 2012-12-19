@@ -1,102 +1,70 @@
-/* 
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- * server js file
- */
-var http = require('http'),
-url = require('url'),
-fs = require('fs'),
-io = require('socket.io'),
-sys = require(process.binding('natives').util ? 'util' : 'sys'),
-server;
+var app = require('http').createServer(handler)
+, io = require('socket.io').listen(app)
+, fs = require('fs')
+
+app.listen(8090);
+
+function handler (req, res) {
+	fs.readFile(__dirname + '/index.html',
+		function (err, data) {
+			if (err) {
+				res.writeHead(500);
+				return res.end('Error loading index.html');
+			}
+
+			res.writeHead(200);
+			res.end(data);
+		});
+}
 
 
+var screens = [], balls = [], ballPos = [];
 
-//Create HTTP Server
-server = http.createServer(function(request, response){
-  //parse the relatice path
-  var path = url.parse(request.url).pathname;
+io.sockets.on('connection', function (socket) {
+	
+	console.log(balls);
+	//Add Client to screens array
+	screens.push(socket);
 
-  switch(path){
-    case '/' :
-    case '/index.html' :
-      fs.readFile(__dirname + '/index.html', function(err, data){
-        if(err){
-          response.write(err);
-          response.end();
-        //return send404(response);
-        }
-        else{
-          response.writeHead(200, {
-            'Content-Type': 'text/html'
-          });
-          response.write(data);
-          response.end();
-        }
-      });
-      break;
-    case '/scripts.js':
-      fs.readFile(__dirname + path, function(err, data){
-        if(err){
-          response.write(err);
-          response.end();
-        //return send404(response);
-        }
-        else{
-          response.writeHead(200, {
-            'Content-Type': 'text/javascript'
-          });
-          response.write(data);
-          response.end();
-        }
-      });
-      break;
-    default:
-      send404(response);
-  }
+	if(screens.length > 0){
 
-});
-server.listen(8090);
+		var screenId = 0;
+		//Keep moving the ball 60 times a sec
+		setInterval(function(){
 
-/****************************************************
- * Socket Connections
- */
+			//find screen id
+			//screenId = ball.x/playground.width;
 
+			for(var i = 0 ; i < screens.length; i++){
+				ballPos = [];
+				for(var j = 0; j < balls.length; j++){
+					ballPos.push({
+						x: balls[j].x - (i * playground.width),
+						y: balls[j].y,
+						color: balls[j].color
+					});
+				}
+				
+				screens[i].emit( 'ballmove',{
+					screen: i,
+					balls: ballPos
+					
+				});
 
-//Buffer is used to store the log
-var io = io.listen(server),screens = [], balls = [];
+			}
+			//Animate the ball
+			animate();
+		}, 1000 / 60);
+	}
 
-io.on('connection', function(client){
+	socket.on('addBall', function(){
 
-  screens.push(client);
-  if(screens.length > 0){
-    setInterval(function(){
-      for(var i = 0 ; i < screens.length; i++){
-        screens[i].send({
-          screen: i,
-          ball:{
-            x: ball.x - (1000*i),
-            y: ball.y
-          }
-        });
-      }
-      animate();
-    }, 1000 / 60);
-  }
+		balls.push(new ball());
+	});
 
-
-  //Add Client to the screen list
-  
-  //console.log(client.sessionId);
-  client.on('message', function(message){
-    
-    });
-  client.on('disconnect', function(){
-    removeByElement(screens, client.sessionId);
-  })
-
-//check if there are any screens connected
-  
+	socket.on('disconnect', function(){
+		removeByElement(screens, socket.sessionId);
+	});
 
 });
 
@@ -105,54 +73,62 @@ io.on('connection', function(client){
 /*****************************************************
  * Helper Functions
  */
-var send404 = function(response){
-  response.writeHead(404);
-  response.write('404');
-  response.end();
-};
+ var send404 = function(response){
+ 	response.writeHead(404);
+ 	response.write('404');
+ 	response.end();
+ };
 
 
 /**
  * Animations function
  */
 //The total size of playground
-var playground;
+var playground = {
+	width : 1000,
+    height : 700 //* screens.length
+};
 
-var ball = {
-  x: 10,
-  y: 10,
-  dx: 4,
-  dy: 4,
-  r: 10,
-  move: function() {
+function ball(){
 
-    if ((this.x - this.r) < 0 || (this.x + this.r) > playground.width) {
-      this.dx = -1 * this.dx;
-    }
-    if ((this.y - this.r) < 0 || (this.y + this.r) > playground.height) {
-      this.dy = -1 * this.dy;
-    }
 
-    this.x += this.dx;
-    this.y += this.dy;
+	this.init = function(){
 
-  }  
+		this.x= Math.floor(Math.random() * playground.width ) + 10;
+		this.y = Math.floor(Math.random() * playground.height ) + 10;
+		this.dx = Math.floor(Math.random() * 10) + 2;
+		this.dy = Math.floor(Math.random() * 10) + 2;
+		this.r = 10;
+		this.color = getRandomColor();
+	}
+
+	this.move = function() {
+
+		if ((this.x - this.r) < 0 || (this.x + this.r) > playground.width * screens.length) {
+			this.dx = -1 * this.dx;
+		}
+		if ((this.y - this.r) < 0 || (this.y + this.r) > playground.height) {
+			this.dy = -1 * this.dy;
+		}
+
+		this.x += this.dx;
+		this.y += this.dy;
+
+	};
+
+	this.init();
 };
 
 
 /**
  *simulate animation
  */
-function animate() {
-  //Dev hack
-  //screens
-  //Calculate the playground size based on screens
-  playground = {
-    width : 1000 * screens.length,
-    height : 600 //* screens.length
-  }
+ function animate() {
+
   //Move the ball
-  ball.move();
+  for(i in balls){
+  	balls[i].move();
+  }
 //Send new data
 
 }
@@ -160,22 +136,31 @@ function animate() {
 /**
  * array remove element
  */
-function removeByElement(arrayName,arrayElement)
-{
-  for(var i=0; i<arrayName.length;i++ )
-  {
-    if(arrayName[i].sessionId == arrayElement)
-      arrayName.splice(i,1);
-  }
-}
+ function removeByElement(arrayName,arrayElement)
+ {
+ 	for(var i=0; i<arrayName.length;i++ )
+ 	{
+ 		if(arrayName[i].sessionId == arrayElement)
+ 			arrayName.splice(i,1);
+ 	}
+ }
 
-function findIndex(arrayName, value){
-  var ctr = "";
-  for (var i=0; i < arrayName.length; i++) {
+ function findIndex(arrayName, value){
+ 	var ctr = "";
+ 	for (var i=0; i < arrayName.length; i++) {
     // use === to check for Matches. ie., identical (===), ;
     if (arrayName[i].sessionId == value) {
-      return i;
+    	return i;
     }
-  }
-  return ctr;
 }
+return ctr;
+}
+
+function getRandomColor() {
+    return "#"+((1<<24)*Math.random()|0).toString(16);
+}
+
+
+
+balls.push(new ball());
+

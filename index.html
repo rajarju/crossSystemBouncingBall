@@ -1,76 +1,94 @@
-<!--
-To change this template, choose Tools | Templates
-and open the template in the editor.
--->
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<!DOCTYPE html>
 <html>
-  <head>
-    <title></title>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-      var canvas, context, r = 10;
+<head>
+  <title></title>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+  var canvas, context, r = 10;
 
-      var drawBall = function(x,y){
-        $('#ball').css({
-          top : y + 'px',
-          left : x + 'px'
-        });
-      };
-      //Initialize the sockets
-      var socket = new io.Socket(null, {
-        port: 8090,
-        rememberTransport: false
-      });
-      
-      socket.connect();
-      socket.on('message', function(obj){
-        if(obj.ball){        
-          $('#screen').text(obj.screen);
-          drawBall(obj.ball.x, obj.ball.y);
-          obj = null;
-        }       
-       
-      });
+  var drawBall = function(i, x, y, color){
+    //console.log(i, x, y);    
+    if(!$('#ball-' + i).length){
+      $('#playground').append($("<div>", { id: 'ball-' + i, 'class' : 'ball'}).css('background-color', color));
+    }
+
+    $('#ball-' + i).css({
+      top : y + 'px',
+      left : x + 'px'
+    });
+  };
+    //Initialize the sockets
+  var socket = io.connect('/', {
+    port: 8090,
+    rememberTransport: false
+  });
+
+  socket.on('ballmove', function(obj){
+    //console.log(obj);
+    $('#screen').text(obj.screen);
+    if(obj.balls){
+      balls = obj.balls;
+      for(i = 0; i < balls.length; i++){        
+        ball = balls[i];          
+        drawBall(i, ball.x, ball.y, ball.color);
+        obj = null;
+      }
+    }       
+
+  });
+
+  function addBall(){
+    socket.emit('addBall', {});
+  }
 
 
 
     </script>
     <style>
-      body{
-        overflow: hidden;
-      }
-      #playground{
-        background: #eee;
-        border: none;
-        margin: 0 auto;
-      }
-      #screen{
-        position: absolute;
-        z-index: 100;
-        right: 0;
-        font-size: 50px;
-        padding: 26px;
-        border: 5px solid;
-        margin: 0px 17px;
-      }
-      #ball{
-        width:20px;
-        height: 20px;
-        border-radius:10px;
-        background: red;
-        position: absolute;
-        top: 0;
-        left: 0;
-        display: block;
-      }
+    body{
+      overflow: hidden;
+    }
+    #playground{
+      background: #eee;
+      border: none;
+      margin: 0 auto;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      margin-left: -500px;
+      margin-top: -350px;
+      height: 700px;
+      width: 1000px;
+      overflow: hidden;
+    }
+    #screen{
+      position: absolute;
+      z-index: 100;
+      right: 0;
+      font-size: 50px;
+      padding: 26px;
+      border: 5px solid;
+      margin: 0px 17px;
+    }
+    .ball{
+      width: 20px;
+      height: 20px;
+      
+      background: red;
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: block;
+      border: 1px solid #999;
+    }
     </style>
   </head>
   <body>
-    <span id="screen">Loading</span>
-  <canvas id="playground" width="1000" height="600">
-  </canvas>
-  <p id="ball"></p>
-</body>
-</html>
+    <span id="screen">Loading</span>    
+    <button onclick="addBall()">Add Balls</button>
+    <div id='playground'>      
+    </div>
+  </body>
+  </html> 
